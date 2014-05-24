@@ -10,7 +10,7 @@ Add `rroonga` entry to your `Gemfile`:
 
     gem "rroonga"
 
-Create `groonga/init.rb` that initialize your Groonga database. You can refer your Groonga database path by `ENV["GROONGA_DATABASE_PATH"]`.
+Create `groonga/init.rb` that initializes your Groonga database. You can refer your Groonga database path by `ENV["GROONGA_DATABASE_PATH"]`.
 
 Here is a sample `groonga/init.rb`:
 
