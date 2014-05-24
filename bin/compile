@@ -1,0 +1,159 @@
+#!/usr/bin/env ruby
+
+require "fileutils"
+require "tmpdir"
+require "yaml"
+
+include FileUtils
+
+def sh(*command_line)
+  puts(command_line.join(" "))
+  system(*command_line) or exit(false)
+end
+
+class Arguments < Struct.new(:build_dir, :cache_dir, :env_dir)
+end
+
+class BuildpackBuilder
+  def initialize(label, name, arguments)
+    @label = label
+    @name = name
+    @arguments = arguments
+  end
+
+  def build
+    puts("-----> Building buildpack: #{@label}")
+    Dir.mktmpdir do |tmpdir|
+      Dir.chdir(tmpdir) do
+        download
+        detect
+        compile
+        release
+      end
+    end
+  end
+
+  private
+  def url
+    "https://codon-buildpacks.s3.amazonaws.com/buildpacks/#{@name}.tgz"
+  end
+
+  def base_name
+    url.split("/").last
+  end
+
+  def download
+    puts("-----> Downloading buildpack: #{url}")
+
+    if url.end_with?(".tgz")
+      sh("curl",
+         "--silent",
+         "--remote-name",
+         "--location",
+         url)
+      sh("tar", "xf", base_name)
+      rm(base_name)
+    else
+      sh("git",
+         "clone",
+         "--depth", "1",
+         url,
+         ".")
+      rm_r(".git")
+    end
+  end
+
+  def detect
+    puts("-----> Detecting buildpack: #{@label}")
+
+    chmod(0755, "bin/detect")
+    sh("bin/detect", @arguments.build_dir)
+  end
+
+  def compile
+    puts("-----> Compiling buildpack: #{@label}")
+
+    chmod(0755, "bin/compile")
+    command_line = [
+      "bin/compile",
+       @arguments.build_dir,
+       @arguments.cache_dir,
+    ]
+    command_line << @arguments.env_dir if @arguments.env_dir
+    sh(*command_line)
+  end
+
+  def release
+    puts("-----> Releasing buildpack: #{@label}")
+
+    chmod(0755, "bin/release")
+    sh("bin/release #{@arguments.build_dir} > config.yaml")
+    YAML.load_file("config.yaml")
+  end
+end
+
+def prepend_path_to_environment_variable(name, *paths)
+  new_paths = paths + [ENV[name]]
+  ENV[name] = new_paths.compact.join(File::PATH_SEPARATOR)
+end
+
+def setup_groonga_environment_variables(build_dir)
+  prefix = File.join(build_dir, "vendor", "groonga")
+
+  prepend_path_to_environment_variable("PATH",
+                                       File.join(prefix, "bin"),
+                                       File.join(prefix, "sbin"))
+
+  prepend_path_to_environment_variable("LD_LIBRARY_PATH",
+                                       File.join(prefix, "lib"))
+
+  prepend_path_to_environment_variable("PKG_CONFIG_PATH",
+                                       File.join(prefix, "lib", "pkgconfig"))
+end
+
+def setup_ruby_environment_variables(build_dir)
+  ruby_paths = [
+    File.join(build_dir, "bin"),
+    File.join(build_dir, "vendor", "bundle", "bin")
+  ]
+  bundle_bin_glob = File.join(build_dir, "vendor", "bundle", "ruby", "*", "bin")
+  ruby_paths += Dir.glob(bundle_bin_glob)
+  prepend_path_to_environment_variable("PATH", ruby_paths)
+
+  gem_paths = []
+  bundle_gem_glob = File.join(build_dir, "vendor", "bundle", "ruby", "*")
+  gem_paths += Dir.glob(bundle_gem_glob)
+  prepend_path_to_environment_variable("GEM_PATH", gem_paths)
+end
+
+arguments = Arguments.new(*ARGV)
+
+builder = BuildpackBuilder.new("Groonga", "groonga/groonga", arguments)
+groonga_config = builder.build
+setup_groonga_environment_variables(arguments.build_dir)
+
+builder = BuildpackBuilder.new("Ruby", "heroku/ruby", arguments)
+ruby_config = builder.build
+setup_ruby_environment_variables(arguments.build_dir)
+
+puts("-----> Initializing database")
+Dir.chdir(arguments.build_dir) do
+  groonga_database_path = File.join(arguments.build_dir, "groonga", "database")
+  ENV["GROONGA_DATABASE_PATH"] = groonga_database_path
+  sh("bundle", "exec", "ruby", File.join("groonga", "init.rb"))
+end
+
+config = Marshal.load(Marshal.dump(ruby_config))
+config["addons"] ||= []
+config["addons"] += groonga_config["addons"] || []
+
+config["config_vars"] ||= {}
+config["config_vars"].merge!(groonga_config["config_vars"])
+
+Dir.chdir(arguments.build_dir) do
+  output_dir = File.join("var", "tmp")
+  mkdir_p(output_dir)
+  File.open(File.join(output_dir, "config.yaml"), "w") do |config_yaml|
+    config_yaml.puts(config.to_yaml)
+  end
+end

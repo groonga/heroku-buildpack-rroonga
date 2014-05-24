@@ -1,0 +1,7 @@
+#!/usr/bin/env ruby
+
+build_dir = ARGV.first
+
+config_yaml = File.join(build_dir, "var", "tmp", "config.yaml")
+puts(File.read(config_yaml))
+

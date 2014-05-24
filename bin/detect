@@ -1,0 +1,13 @@
+#!/usr/bin/env ruby
+
+build_dir = ARGV.first
+
+init_rb = File.join(build_dir, "groonga", "init.rb")
+gemfile = File.join(build_dir, "Gemfile")
+if File.exist?(init_rb) and File.exist?(gemfile)
+  puts("Rroonga")
+  exit(true)
+else
+  puts("no")
+  exit(false)
+end
