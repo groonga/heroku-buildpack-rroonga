@@ -12,8 +12,32 @@ def sh(*command_line)
   else
     env = {}
   end
+  if command_line.last.is_a?(Hash)
+    spawn_options = command_line.pop
+  else
+    spawn_options = {}
+  end
   puts(command_line.join(" "))
-  system(env, *command_line) or exit(false)
+  system(env, *command_line, spawn_options) or exit(false)
+end
+
+def merge_environment_variables(variables)
+  variables = variables.dup
+  target_paths = [
+    "PATH",
+    "LD_LIBRARY_PATH",
+    "PKG_CONFIG_PATH",
+    "GEM_PATH",
+  ]
+  target_paths.each do |target_path|
+    next unless variables.key?(target_path)
+    all_paths = [
+      ENV[target_path],
+      variables[target_path],
+    ]
+    variables[target_path] = all_paths.compact.join(File::PATH_SEPARATOR)
+  end
+  variables
 end
 
 class Arguments < Struct.new(:build_dir, :cache_dir, :env_dir)
@@ -82,29 +106,31 @@ class BuildpackBuilder
   def detect
     puts("-----> Detecting buildpack: #{@label}")
 
-    chmod(0755, "bin/detect")
-    sh("bin/detect", @arguments.build_dir)
+    run_script("bin/detect", @arguments.build_dir)
   end
 
   def compile
     puts("-----> Compiling buildpack: #{@label}")
 
-    chmod(0755, "bin/compile")
-    command_line = [
-      "bin/compile",
+    arguments = [
        @arguments.build_dir,
        @arguments.cache_dir,
     ]
-    command_line << @arguments.env_dir if @arguments.env_dir
-    sh(*command_line)
+    arguments << @arguments.env_dir if @arguments.env_dir
+    run_script("bin/compile", *arguments)
   end
 
   def release
     puts("-----> Releasing buildpack: #{@label}")
 
-    chmod(0755, "bin/release")
-    sh("bin/release #{@arguments.build_dir} > config.yaml")
+    run_script("bin/release", @arguments.build_dir, :out => "config.yaml")
     YAML.load_file("config.yaml")
+  end
+
+  def run_script(script, *arguments)
+    chmod(0755, script)
+    sh(merge_environment_variables(@arguments.environment_variables),
+       script, *arguments)
   end
 end
 
@@ -142,25 +168,6 @@ def setup_ruby_environment_variables(build_dir)
   prepend_path_to_environment_variable("GEM_PATH", gem_paths)
 end
 
-def merge_environment_variables(variables)
-  variables = variables.dup
-  target_paths = [
-    "PATH",
-    "LD_LIBRARY_PATH",
-    "PKG_CONFIG_PATH",
-    "GEM_PATH",
-  ]
-  target_paths.each do |target_path|
-    next unless variables.key?(target_path)
-    all_paths = [
-      ENV[target_path],
-      variables[target_path],
-    ]
-    variables[target_path] = all_paths.compact.join(File::PATH_SEPARATOR)
-  end
-  variables
-end
-
 arguments = Arguments.new(*ARGV)
 
 builder = BuildpackBuilder.new("Groonga", "groonga/groonga", arguments)
@@ -175,7 +182,6 @@ puts("-----> Initializing database")
 Dir.chdir(arguments.build_dir) do
   groonga_database_path = File.join(arguments.build_dir, "groonga", "database")
   ENV["GROONGA_DATABASE_PATH"] = groonga_database_path
-  p merge_environment_variables(arguments.environment_variables)
   sh(merge_environment_variables(arguments.environment_variables),
      "bundle", "exec", "ruby", File.join("groonga", "init.rb"))
 end
