@@ -7,11 +7,27 @@ require "yaml"
 include FileUtils
 
 def sh(*command_line)
+  if command_line.first.is_a?(Hash)
+    env = command_line.shift
+  else
+    env = {}
+  end
   puts(command_line.join(" "))
-  system(*command_line) or exit(false)
+  system(env, *command_line) or exit(false)
 end
 
 class Arguments < Struct.new(:build_dir, :cache_dir, :env_dir)
+  def environment_variables
+    return {} if env_dir.nil?
+
+    variables = {}
+    Dir.chdir(env_dir) do
+      Dir.glob("*") do |key|
+        variables[key] = File.read(key)
+      end
+    end
+    variables
+  end
 end
 
 class BuildpackBuilder
@@ -140,7 +156,8 @@ puts("-----> Initializing database")
 Dir.chdir(arguments.build_dir) do
   groonga_database_path = File.join(arguments.build_dir, "groonga", "database")
   ENV["GROONGA_DATABASE_PATH"] = groonga_database_path
-  sh("bundle", "exec", "ruby", File.join("groonga", "init.rb"))
+  sh(arguments.environment_variables,
+     "bundle", "exec", "ruby", File.join("groonga", "init.rb"))
 end
 
 config = Marshal.load(Marshal.dump(ruby_config))
