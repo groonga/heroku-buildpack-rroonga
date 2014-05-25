@@ -111,12 +111,17 @@ class BuildpackBuilder
   def compile
     puts("-----> Compiling buildpack: #{@label}")
 
-    arguments = [
-       @arguments.build_dir,
-       @arguments.cache_dir,
-    ]
-    arguments << @arguments.env_dir if @arguments.env_dir
-    run_script("bin/compile", *arguments)
+    Dir.mktmpdir do |env_dir|
+      new_environment_variables.each do |name, value|
+        File.open("#{env_dir}/#{name}", "w") do |file|
+          file.print(value)
+        end
+      end
+      run_script("bin/compile",
+                 @arguments.build_dir,
+                 @arguments.cache_dir,
+                 env_dir)
+    end
   end
 
   def release
@@ -128,8 +133,11 @@ class BuildpackBuilder
 
   def run_script(script, *arguments)
     chmod(0755, script)
-    sh(merge_environment_variables(@arguments.environment_variables),
-       script, *arguments)
+    sh(new_environment_variables, script, *arguments)
+  end
+
+  def new_environment_variables
+    merge_environment_variables(@arguments.environment_variables)
   end
 end
 
