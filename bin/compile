@@ -17,6 +17,7 @@ def sh(*command_line)
   else
     spawn_options = {}
   end
+  p(env)
   puts(command_line.join(" "))
   system(env, *command_line, spawn_options) or exit(false)
 end
