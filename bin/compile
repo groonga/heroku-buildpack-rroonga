@@ -28,6 +28,7 @@ def merge_environment_variables(variables)
     "PATH",
     "LD_LIBRARY_PATH",
     "PKG_CONFIG_PATH",
+    "GROONGA_DATABASE_PATH",
   ]
   target_paths.each do |target_path|
     all_paths = [
@@ -176,6 +177,8 @@ def setup_ruby_environment_variables(build_dir)
 end
 
 arguments = Arguments.new(*ARGV)
+groonga_database_path = File.join(arguments.build_dir, "groonga", "database")
+ENV["GROONGA_DATABASE_PATH"] = groonga_database_path
 
 builder = BuildpackBuilder.new("Groonga", "groonga/groonga", arguments)
 groonga_config = builder.build
@@ -187,8 +190,6 @@ setup_ruby_environment_variables(arguments.build_dir)
 
 puts("-----> Initializing database")
 Dir.chdir(arguments.build_dir) do
-  groonga_database_path = File.join(arguments.build_dir, "groonga", "database")
-  ENV["GROONGA_DATABASE_PATH"] = groonga_database_path
   sh(merge_environment_variables(arguments.environment_variables),
      "bundle", "exec", "ruby", File.join("groonga", "init.rb"))
 end
