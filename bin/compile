@@ -27,7 +27,6 @@ def merge_environment_variables(variables)
     "PATH",
     "LD_LIBRARY_PATH",
     "PKG_CONFIG_PATH",
-    "GROONGA_DATABASE_PATH",
   ]
   target_paths.each do |target_path|
     all_paths = [
@@ -36,6 +35,7 @@ def merge_environment_variables(variables)
     ]
     variables[target_path] = all_paths.compact.join(File::PATH_SEPARATOR)
   end
+  vairalbes["GROONGA_DATABASE_PATH"] = ENV["GROONGA_DATABASE_PATH"]
   variables
 end
 
