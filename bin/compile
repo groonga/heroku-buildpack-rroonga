@@ -175,6 +175,7 @@ puts("-----> Initializing database")
 Dir.chdir(arguments.build_dir) do
   groonga_database_path = File.join(arguments.build_dir, "groonga", "database")
   ENV["GROONGA_DATABASE_PATH"] = groonga_database_path
+  p merge_environment_variables(arguments.environment_variables)
   sh(merge_environment_variables(arguments.environment_variables),
      "bundle", "exec", "ruby", File.join("groonga", "init.rb"))
 end
