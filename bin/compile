@@ -35,7 +35,7 @@ def merge_environment_variables(variables)
     ]
     variables[target_path] = all_paths.compact.join(File::PATH_SEPARATOR)
   end
-  vairalbes["GROONGA_DATABASE_PATH"] = ENV["GROONGA_DATABASE_PATH"]
+  variables["GROONGA_DATABASE_PATH"] = ENV["GROONGA_DATABASE_PATH"]
   variables
 end
 
