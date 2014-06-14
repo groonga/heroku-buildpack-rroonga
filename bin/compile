@@ -180,7 +180,7 @@ arguments = Arguments.new(*ARGV)
 
 groonga_base_path = File.join(arguments.build_dir, "groonga")
 ENV["GROONGA_BASE_PATH"] = groonga_base_path
-groonga_database_path = File.join(groonga_base_dir, "database")
+groonga_database_path = File.join(groonga_base_path, "database")
 ENV["GROONGA_DATABASE_PATH"] = groonga_database_path
 
 builder = BuildpackBuilder.new("Groonga", "groonga/groonga", arguments)
