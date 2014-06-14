@@ -2,7 +2,7 @@
 
 This is a Heroku buildpack of [Rroonga](http://ranguba.org/#about-rroonga).
 
-## Usage:
+## Usage
 
     heroku create --buildpack https://codon-buildpacks.s3.amazonaws.com/buildpacks/groonga/rroonga.tgz
 
@@ -10,7 +10,9 @@ Add `rroonga` entry to your `Gemfile`:
 
     gem "rroonga"
 
-Create `groonga/init.rb` that initializes your Groonga database. You can refer your Groonga database path by `ENV["GROONGA_DATABASE_PATH"]`.
+Create `groonga/init.rb` that initializes your Groonga database. You
+can refer your Groonga database path by
+`ENV["GROONGA_DATABASE_PATH"]`.
 
 Here is a sample `groonga/init.rb`:
 
@@ -60,3 +62,22 @@ end
 Then push them to Heroku.
 
     git push heroku master
+
+## Advanced usage
+
+This buildpack expects to Groonga database is created at
+`ENV["GROONGA_DATABASE_PATH"]` by default. But you can use different
+path for your Groonga database. You can use `ENV["GROONGA_BASE_PATH"]`
+to determine your Groonga database path. `ENV["GROONGA_BASE_PATH"]`
+has a directory path that should be placed Groonga related files.
+
+Example:
+
+```ruby
+# groonga/init.rb
+
+require "groonga"
+
+my_custom_database_path = File.join(ENV["GROONGA_BASE_PATH"], "my-database")
+Groonga::Database.open(my_custom_database_path)
+```

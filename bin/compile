@@ -35,6 +35,7 @@ def merge_environment_variables(variables)
     ]
     variables[target_path] = all_paths.compact.join(File::PATH_SEPARATOR)
   end
+  variables["GROONGA_BASE_PATH"]     = ENV["GROONGA_BASE_PATH"]
   variables["GROONGA_DATABASE_PATH"] = ENV["GROONGA_DATABASE_PATH"]
   variables
 end
@@ -176,7 +177,10 @@ def setup_ruby_environment_variables(build_dir)
 end
 
 arguments = Arguments.new(*ARGV)
-groonga_database_path = File.join(arguments.build_dir, "groonga", "database")
+
+groonga_base_path = File.join(arguments.build_dir, "groonga")
+ENV["GROONGA_BASE_PATH"] = groonga_base_path
+groonga_database_path = File.join(groonga_base_dir, "database")
 ENV["GROONGA_DATABASE_PATH"] = groonga_database_path
 
 builder = BuildpackBuilder.new("Groonga", "groonga/groonga", arguments)
