@@ -54,94 +54,6 @@ class Arguments < Struct.new(:build_dir, :cache_dir, :env_dir)
   end
 end
 
-class BuildpackBuilder
-  def initialize(label, name, arguments)
-    @label = label
-    @name = name
-    @arguments = arguments
-  end
-
-  def build
-    puts("-----> Building buildpack: #{@label}")
-    Dir.mktmpdir do |tmpdir|
-      Dir.chdir(tmpdir) do
-        download
-        detect
-        compile
-        release
-      end
-    end
-  end
-
-  private
-  def url
-    "https://codon-buildpacks.s3.amazonaws.com/buildpacks/#{@name}.tgz"
-  end
-
-  def base_name
-    url.split("/").last
-  end
-
-  def download
-    puts("-----> Downloading buildpack: #{url}")
-
-    if url.end_with?(".tgz")
-      sh("curl",
-         "--silent",
-         "--remote-name",
-         "--location",
-         url)
-      sh("tar", "xf", base_name)
-      rm(base_name)
-    else
-      sh("git",
-         "clone",
-         "--depth", "1",
-         url,
-         ".")
-      rm_r(".git")
-    end
-  end
-
-  def detect
-    puts("-----> Detecting buildpack: #{@label}")
-
-    run_script("bin/detect", @arguments.build_dir)
-  end
-
-  def compile
-    puts("-----> Compiling buildpack: #{@label}")
-
-    Dir.mktmpdir do |env_dir|
-      new_environment_variables.each do |name, value|
-        File.open("#{env_dir}/#{name}", "w") do |file|
-          file.print(value)
-        end
-      end
-      run_script("bin/compile",
-                 @arguments.build_dir,
-                 @arguments.cache_dir,
-                 env_dir)
-    end
-  end
-
-  def release
-    puts("-----> Releasing buildpack: #{@label}")
-
-    run_script("bin/release", @arguments.build_dir, :out => "config.yaml")
-    YAML.load_file("config.yaml")
-  end
-
-  def run_script(script, *arguments)
-    chmod(0755, script)
-    sh(new_environment_variables, script, *arguments)
-  end
-
-  def new_environment_variables
-    merge_environment_variables(@arguments.environment_variables)
-  end
-end
-
 def prepend_path_to_environment_variable(name, *paths)
   new_paths = paths + [ENV[name]]
   ENV[name] = new_paths.compact.join(File::PATH_SEPARATOR)
@@ -149,16 +61,25 @@ end
 
 def setup_groonga_environment_variables(build_dir)
   prefix = File.join(build_dir, "vendor", "groonga")
+  mecab_prefix = File.join(build_dir, "vendor", "mecab")
 
   prepend_path_to_environment_variable("PATH",
                                        File.join(prefix, "bin"),
                                        File.join(prefix, "sbin"))
 
   prepend_path_to_environment_variable("LD_LIBRARY_PATH",
+                                       File.join(mecab_prefix, "lib"))
+  prepend_path_to_environment_variable("LD_LIBRARY_PATH",
                                        File.join(prefix, "lib"))
 
   prepend_path_to_environment_variable("PKG_CONFIG_PATH",
                                        File.join(prefix, "lib", "pkgconfig"))
+
+  ENV["MECABRC"] = File.join(mecab_prefix, "etc", "mecabrc")
+
+  ENV["GRN_PLUGINS_DIR"] = File.join(prefix, "lib", "groonga", "plugins")
+  ENV["GRN_RUBY_SCRIPTS_DIR"] =
+    File.join(prefix, "lib", "groonga", "scripts", "ruby")
 end
 
 def setup_ruby_environment_variables(build_dir)
@@ -176,6 +97,15 @@ def setup_ruby_environment_variables(build_dir)
   prepend_path_to_environment_variable("GEM_PATH", gem_paths)
 end
 
+def update_mecabrc(mecabrc, prefix)
+  sh("sed", "-i.bak", "-e", "s,/app,#{prefix},g", mecabrc)
+  begin
+    yield
+  ensure
+    mv("#{mecabrc}.bak", mecabrc)
+  end
+end
+
 arguments = Arguments.new(*ARGV)
 
 groonga_base_path = File.join(arguments.build_dir, "groonga")
@@ -184,31 +114,13 @@ groonga_database_path = File.join(groonga_base_path, "data", "db")
 mkdir_p(File.dirname(groonga_database_path))
 ENV["GROONGA_DATABASE_PATH"] = groonga_database_path
 
-builder = BuildpackBuilder.new("Groonga", "groonga/groonga", arguments)
-groonga_config = builder.build
 setup_groonga_environment_variables(arguments.build_dir)
-
-builder = BuildpackBuilder.new("Ruby", "heroku/ruby", arguments)
-ruby_config = builder.build
 setup_ruby_environment_variables(arguments.build_dir)
 
 puts("-----> Initializing database")
 Dir.chdir(arguments.build_dir) do
-  sh(merge_environment_variables(arguments.environment_variables),
-     "bundle", "exec", "ruby", File.join("groonga", "init.rb"))
-end
-
-config = Marshal.load(Marshal.dump(ruby_config))
-config["addons"] ||= []
-config["addons"] += groonga_config["addons"] || []
-
-config["config_vars"] ||= {}
-config["config_vars"].merge!(groonga_config["config_vars"])
-
-Dir.chdir(arguments.build_dir) do
-  output_dir = File.join("var", "tmp")
-  mkdir_p(output_dir)
-  File.open(File.join(output_dir, "config.yaml"), "w") do |config_yaml|
-    config_yaml.puts(config.to_yaml)
+  update_mecabrc(ENV["MECABRC"], arguments.build_dir) do
+    sh(merge_environment_variables(arguments.environment_variables),
+       "bundle", "exec", "ruby", File.join("groonga", "init.rb"))
   end
 end

@@ -4,7 +4,9 @@ This is a Heroku buildpack of [Rroonga](http://ranguba.org/#about-rroonga).
 
 ## Usage
 
-    heroku create --buildpack https://codon-buildpacks.s3.amazonaws.com/buildpacks/groonga/rroonga.tgz
+    heroku apps:create --buildpack https://codon-buildpacks.s3.amazonaws.com/buildpacks/groonga/groonga.tgz
+    heroku buildpacks:add heroku/ruby
+    heroku buildpacks:add https://codon-buildpacks.s3.amazonaws.com/buildpacks/groonga/rroonga.tgz
 
 Add `rroonga` entry to your `Gemfile`:
 

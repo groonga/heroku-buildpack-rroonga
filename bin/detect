@@ -3,8 +3,7 @@
 build_dir = ARGV.first
 
 init_rb = File.join(build_dir, "groonga", "init.rb")
-gemfile = File.join(build_dir, "Gemfile")
-if File.exist?(init_rb) and File.exist?(gemfile)
+if File.exist?(init_rb)
   puts("Rroonga")
   exit(true)
 else
