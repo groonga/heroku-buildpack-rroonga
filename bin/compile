@@ -52,7 +52,7 @@ arguments = Arguments.new(*ARGV)
 puts("-----> Initializing database")
 Dir.chdir(arguments.build_dir) do
   update_mecabrc(ENV["MECABRC"], arguments.build_dir) do
-    sh(ENV.merge(arguments.environment_variables),
+    sh(ENV.to_h.merge(arguments.environment_variables),
        "bundle", "exec", "ruby", File.join("groonga", "init.rb"))
   end
 end
