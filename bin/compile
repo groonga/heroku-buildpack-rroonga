@@ -3,6 +3,8 @@
 require "pp"
 pp ENV
 
+puts File.open(ENV["MECABRC"])
+
 require "fileutils"
 
 include FileUtils
