@@ -1,11 +1,6 @@
 #!/usr/bin/env ruby
 
-require "pp"
-pp ENV
-
 require "fileutils"
-require "tmpdir"
-require "yaml"
 
 include FileUtils
 
@@ -38,21 +33,10 @@ class Arguments < Struct.new(:build_dir, :cache_dir, :env_dir)
   end
 end
 
-def update_mecabrc(mecabrc, prefix)
-  sh("sed", "-i.bak", "-e", "s,/app,#{prefix},g", mecabrc)
-  begin
-    yield
-  ensure
-    mv("#{mecabrc}.bak", mecabrc)
-  end
-end
-
 arguments = Arguments.new(*ARGV)
 
 puts("-----> Initializing database")
 Dir.chdir(arguments.build_dir) do
-  update_mecabrc(ENV["MECABRC"], arguments.build_dir) do
-    sh(ENV.to_h.merge(arguments.environment_variables),
-       "bundle", "exec", "ruby", File.join("groonga", "init.rb"))
-  end
+  sh(ENV.to_h.merge(arguments.environment_variables),
+     "bundle", "exec", "ruby", File.join("groonga", "init.rb"))
 end
